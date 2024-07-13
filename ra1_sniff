@@ -1,0 +1,98 @@
+#2 /usr/bin/python 
+
+
+
+from scapy.all import sniff, IP, TCP, UDP, ICMP, ARP, Ether, DNS
+import argparse
+from datetime import datetime
+
+packet_number = 0
+
+def packet_callback(packet):
+    global packet_number
+    packet_number += 1
+    
+    # Get the timestamp
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+
+    print(f"\nPacket #{packet_number}")
+    print(f"Timestamp: {timestamp}")
+
+    if Ether in packet:
+        eth_src = packet[Ether].src
+        eth_dst = packet[Ether].dst
+        eth_type = packet[Ether].type
+        print(f"Ethernet Frame: Src MAC: {eth_src} -> Dst MAC: {eth_dst} | EtherType: {eth_type}")
+
+    if IP in packet:
+        ip_src = packet[IP].src
+        ip_dst = packet[IP].dst
+        ttl = packet[IP].ttl
+        print(f"IP Packet: Src IP: {ip_src} -> Dst IP: {ip_dst} | TTL: {ttl}")
+
+        if TCP in packet:
+            sport = packet[TCP].sport
+            dport = packet[TCP].dport
+            seq = packet[TCP].seq
+            ack = packet[TCP].ack
+            flags = packet[TCP].flags
+            print(f"TCP Segment: Src Port: {sport} -> Dst Port: {dport} | Seq: {seq} | Ack: {ack} | Flags: {flags}")
+
+        elif UDP in packet:
+            sport = packet[UDP].sport
+            dport = packet[UDP].dport
+            print(f"UDP Datagram: Src Port: {sport} -> Dst Port: {dport}")
+
+        elif ICMP in packet:
+            icmp_type = packet[ICMP].type
+            icmp_code = packet[ICMP].code
+            print(f"ICMP Packet: Type: {icmp_type} | Code: {icmp_code}")
+
+    elif ARP in packet:
+        arp_op = packet[ARP].op
+        arp_src = packet[ARP].psrc
+        arp_dst = packet[ARP].pdst
+        print(f"ARP Packet: Operation: {arp_op} | Src IP: {arp_src} -> Dst IP: {arp_dst}")
+
+    elif DNS in packet:
+        dns_qname = packet[DNS].qd.qname
+        print(f"DNS Query: {dns_qname}")
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Advanced Network Sniffer Tool")
+    parser.add_argument("-i", "--interface", help="Network interface to sniff on", required=True)
+    parser.add_argument("-c", "--count", type=int, help="Number of packets to capture (default is infinite)", default=0)
+    parser.add_argument("-p", "--protocol", choices=['tcp', 'udp', 'icmp', 'arp', 'dns', 'all'], default='all', help="Protocol to filter by (default is all)")
+    parser.add_argument("-o", "--output", help="Output file to save captured packets")
+    parser.add_argument("-t", "--timeout", type=int, help="Time in seconds to run the sniffer (default is infinite)", default=None)
+    return parser.parse_args()
+
+def main():
+    args = parse_arguments()
+    print(f"Starting network sniffer on interface {args.interface}...")
+
+    # Define the filter
+    if args.protocol == 'tcp':
+        filter_str = "tcp"
+    elif args.protocol == 'udp':
+        filter_str = "udp"
+    elif args.protocol == 'icmp':
+        filter_str = "icmp"
+    elif args.protocol == 'arp':
+        filter_str = "arp"
+    elif args.protocol == 'dns':
+        filter_str = "udp port 53"  # DNS usually uses UDP port 53
+    else:
+        filter_str = None
+
+    # Capture packets
+    packets = sniff(iface=args.interface, prn=packet_callback, count=args.count, filter=filter_str, timeout=args.timeout)
+
+    # Save packets to a file if output is specified
+    if args.output:
+        wrpcap(args.output, packets)
+        print(f"Packets saved to {args.output}")
+
+if __name__ == "__main__":
+    main()
+
